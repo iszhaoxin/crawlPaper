@@ -1,0 +1,1895 @@
+6
+1
+0
+2
+
+ 
+
+n
+u
+J
+ 
+
+5
+
+ 
+ 
+]
+L
+C
+.
+s
+c
+[
+ 
+ 
+
+4
+v
+8
+3
+7
+2
+
+.
+
+1
+1
+4
+1
+:
+v
+i
+X
+r
+a
+
+word2vec Parameter Learning Explained
+
+Xin Rong
+
+ronxin@umich.edu
+
+Abstract
+
+The word2vec model and application by Mikolov et al. have attracted a great
+amount of attention in recent two years. The vector representations of words learned
+by word2vec models have been shown to carry semantic meanings and are useful in
+various NLP tasks. As an increasing number of researchers would like to experiment
+with word2vec or similar techniques, I notice that there lacks a material that compre-
+hensively explains the parameter learning process of word embedding models in details,
+thus preventing researchers that are non-experts in neural networks from understanding
+the working mechanism of such models.
+
+This note provides detailed derivations and explanations of the parameter up-
+date equations of the word2vec models, including the original continuous bag-of-word
+(CBOW) and skip-gram (SG) models, as well as advanced optimization techniques,
+including hierarchical softmax and negative sampling. Intuitive interpretations of the
+gradient equations are also provided alongside mathematical derivations.
+
+In the appendix, a review on the basics of neuron networks and backpropagation
+is provided. I also created an interactive demo, wevi, to facilitate the intuitive under-
+standing of the model.1
+
+1 Continuous Bag-of-Word Model
+
+1.1 One-word context
+
+We start from the simplest version of the continuous bag-of-word model (CBOW) intro-
+duced in Mikolov et al. (2013a). We assume that there is only one word considered per
+context, which means the model will predict one target word given one context word, which
+is like a bigram model. For readers who are new to neural networks, it is recommended that
+one go through Appendix A for a quick review of the important concepts and terminologies
+before proceeding further.
+
+Figure 1 shows the network model under the simpliﬁed context deﬁnition2.
+
+In our
+setting, the vocabulary size is V , and the hidden layer size is N . The units on adjacent
+
+1An online interactive demo is available at: http://bit.ly/wevi-online.
+2In Figures 1, 2, 3, and the rest of this note, W(cid:48) is not the transpose of W, but a diﬀerent matrix
+
+instead.
+
+1
+
+Figure 1: A simple CBOW model with only one word in the context
+
+layers are fully connected. The input is a one-hot encoded vector, which means for a given
+input context word, only one out of V units, {x1,··· , xV }, will be 1, and all other units
+are 0.
+The weights between the input layer and the output layer can be represented by a
+V × N matrix W. Each row of W is the N -dimension vector representation vw of the
+associated word of the input layer. Formally, row i of W is vT
+w. Given a context (a word),
+assuming xk = 1 and xk(cid:48) = 0 for k(cid:48) (cid:54)= k, we have
+
+h = WT x = WT
+
+(k,·) := vT
+wI
+
+,
+
+(1)
+
+which is essentially copying the k-th row of W to h. vwI is the vector representation of the
+input word wI . This implies that the link (activation) function of the hidden layer units is
+simply linear (i.e., directly passing its weighted sum of inputs to the next layer).
+ij},
+which is an N × V matrix. Using these weights, we can compute a score uj for each word
+in the vocabulary,
+
+From the hidden layer to the output layer, there is a diﬀerent weight matrix W(cid:48) = {w(cid:48)
+
+(2)
+wj is the j-th column of the matrix W(cid:48). Then we can use softmax, a log-linear
+where v(cid:48)
+classiﬁcation model, to obtain the posterior distribution of words, which is a multinomial
+distribution.
+
+wj
+
+uj = v(cid:48)
+
+T h,
+
+p(wj|wI ) = yj =
+
+(cid:80)V
+
+exp(uj)
+j(cid:48)=1 exp(uj(cid:48))
+
+,
+
+(3)
+
+where yj is the output of the j-the unit in the output layer. Substituting (1) and (2) into
+
+2
+
+Input layerHidden layerOutput layerx1x2x3xkxVy1y2y3yjyVh1h2hihNWV×N={wki}W'N×V={w'ij}(3), we obtain
+
+p(wj|wI ) =
+
+(cid:16)
+
+exp
+
+(cid:80)V
+
+(cid:17)
+
+v(cid:48)
+
+(cid:16)
+
+T vwI
+wj
+v(cid:48)
+wj(cid:48)
+
+j(cid:48)=1 exp
+
+T vwI
+
+(cid:17)
+
+(4)
+
+Note that vw and v(cid:48)
+
+w are two representations of the word w. vw comes from rows of
+W, which is the input→hidden weight matrix, and v(cid:48)
+w comes from columns of W(cid:48), which
+is the hidden→output matrix. In subsequent analysis, we call vw as the “input vector”,
+and v(cid:48)
+
+w as the “output vector” of the word w.
+
+Update equation for hidden→output weights
+
+Let us now derive the weight update equation for this model. Although the actual com-
+putation is impractical (explained below), we are doing the derivation to gain insights on
+this original model with no tricks applied. For a review of basics of backpropagation, see
+Appendix A.
+
+The training objective (for one training sample) is to maximize (4), the conditional
+probability of observing the actual output word wO (denote its index in the output layer
+as j∗) given the input context word wI with regard to the weights.
+
+max p(wO|wI ) = max yj∗
+
+= max log yj∗
+= uj∗ − log
+
+V(cid:88)
+
+j(cid:48)=1
+
+exp(uj(cid:48)) := −E,
+
+(5)
+
+(6)
+
+(7)
+
+where E = − log p(wO|wI ) is our loss function (we want to minimize E), and j∗ is the
+index of the actual output word in the output layer. Note that this loss function can be
+understood as a special case of the cross-entropy measurement between two probabilistic
+distributions.
+
+Let us now derive the update equation of the weights between hidden and output layers.
+
+Take the derivative of E with regard to j-th unit’s net input uj, we obtain
+
+= yj − tj := ej
+
+∂E
+∂uj
+
+(8)
+
+where tj = 1(j = j∗), i.e., tj will only be 1 when the j-th unit is the actual output word,
+otherwise tj = 0. Note that this derivative is simply the prediction error ej of the output
+layer.
+ij to obtain the gradient on the hidden→output
+
+Next we take the derivative on w(cid:48)
+
+weights.
+
+∂E
+∂w(cid:48)
+
+ij
+
+=
+
+∂E
+∂uj
+
+· ∂uj
+∂w(cid:48)
+
+ij
+
+= ej · hi
+
+3
+
+(9)
+
+Therefore, using stochastic gradient descent, we obtain the weight updating equation for
+hidden→output weights:
+
+w(cid:48)
+
+ij
+
+(new) = w(cid:48)
+
+ij
+
+(old) − η · ej · hi.
+
+(10)
+
+or
+
+for j = 1, 2,··· , V.
+
+v(cid:48)
+
+wj
+
+(new) = v(cid:48)
+
+(old) − η · ej · h
+
+wj
+
+(11)
+where η > 0 is the learning rate, ej = yj − tj, and hi is the i-th unit in the hidden layer;
+v(cid:48)
+wj is the output vector of wj. Note that this update equation implies that we have to
+go through every possible word in the vocabulary, check its output probability yj, and
+compare yj with its expected output tj (either 0 or 1).
+If yj > tj (“overestimating”),
+then we subtract a proportion of the hidden vector h (i.e., vwI ) from v(cid:48)
+wj , thus making
+v(cid:48)
+wj farther away from vwI ; if yj < tj (“underestimating”, which is true only if tj = 1,
+i.e., wj = wO), we add some h to v(cid:48)
+If yj is very
+close to tj, then according to the update equation, very little change will be made to the
+weights. Note, again, that vw (input vector) and v(cid:48)
+w (output vector) are two diﬀerent
+vector representations of the word w.
+
+, thus making v(cid:48)
+
+closer3 to vwI .
+
+wO
+
+wO
+
+Update equation for input→hidden weights
+Having obtained the update equations for W(cid:48), we can now move on to W. We take the
+derivative of E on the output of the hidden layer, obtaining
+
+V(cid:88)
+
+j=1
+
+V(cid:88)
+
+j=1
+
+∂E
+∂hi
+
+=
+
+∂E
+∂uj
+
+· ∂uj
+∂hi
+
+=
+
+ej · w(cid:48)
+
+ij := EHi
+
+(12)
+
+where hi is the output of the i-th unit of the hidden layer; uj is deﬁned in (2), the net
+input of the j-th unit in the output layer; and ej = yj − tj is the prediction error of the
+j-th word in the output layer. EH, an N -dim vector, is the sum of the output vectors of
+all words in the vocabulary, weighted by their prediction error.
+
+Next we should take the derivative of E on W. First, recall that the hidden layer
+performs a linear computation on the values from the input layer. Expanding the vector
+notation in (1) we get
+
+V(cid:88)
+
+hi =
+
+xk · wki
+
+Now we can take the derivative of E with regard to each element of W, obtaining
+
+k=1
+
+∂E
+∂wki
+
+=
+
+∂E
+∂hi
+
+· ∂hi
+∂wki
+
+= EHi · xk
+
+3Here when I say “closer” or “farther”, I meant using the inner product instead of Euclidean as the
+
+distance measurement.
+
+4
+
+(13)
+
+(14)
+
+This is equivalent to the tensor product of x and EH, i.e.,
+
+= x ⊗ EH = xEHT
+
+∂E
+∂W
+
+(15)
+from which we obtain a V × N matrix. Since only one component of x is non-zero, only
+∂W is non-zero, and the value of that row is EHT , an N -dim vector. We obtain
+one row of ∂E
+the update equation of W as
+
+v(new)
+
+wI
+
+= v(old)
+
+wI
+
+− ηEHT
+
+(16)
+
+where vwI is a row of W, the “input vector” of the only context word, and is the only row
+of W whose derivative is non-zero. All the other rows of W will remain unchanged after
+this iteration, because their derivatives are zero.
+Intuitively, since vector EH is the sum of output vectors of all words in vocabulary
+weighted by their prediction error ej = yj − tj, we can understand (16) as adding a portion
+of every output vector in vocabulary to the input vector of the context word. If, in the
+output layer, the probability of a word wj being the output word is overestimated (yj > tj),
+then the input vector of the context word wI will tend to move farther away from the output
+vector of wj; conversely if the probability of wj being the output word is underestimated
+(yj < tj), then the input vector wI will tend to move closer to the output vector of wj;
+if the probability of wj is fairly accurately predicted, then it will have little eﬀect on the
+movement of the input vector of wI . The movement of the input vector of wI is determined
+by the prediction error of all vectors in the vocabulary; the larger the prediction error, the
+more signiﬁcant eﬀects a word will exert on the movement on the input vector of the
+context word.
+
+As we iteratively update the model parameters by going through context-target word
+pairs generated from a training corpus, the eﬀects on the vectors will accumulate. We
+can imagine that the output vector of a word w is “dragged” back-and-forth by the input
+vectors of w’s co-occurring neighbors, as if there are physical strings between the vector
+of w and the vectors of its neighbors. Similarly, an input vector can also be considered as
+being dragged by many output vectors. This interpretation can remind us of gravity, or
+force-directed graph layout. The equilibrium length of each imaginary string is related to
+the strength of cooccurrence between the associated pair of words, as well as the learning
+rate. After many iterations, the relative positions of the input and output vectors will
+eventually stabilize.
+
+1.2 Multi-word context
+
+Figure 2 shows the CBOW model with a multi-word context setting. When computing
+the hidden layer output, instead of directly copying the input vector of the input context
+word, the CBOW model takes the average of the vectors of the input context words, and
+
+5
+
+use the product of the input→hidden weight matrix and the average vector as the output.
+
+h =
+
+WT (x1 + x2 + ··· + xC)
+(vw1 + vw2 + ··· + vwC )T
+
+1
+C
+1
+C
+
+=
+
+(18)
+where C is the number of words in the context, w1,··· , wC are the words the in the context,
+and vw is the input vector of a word w. The loss function is
+E = = − log p(wO|wI,1,··· , wI,C)
+
+(19)
+
+(17)
+
+(20)
+
+(21)
+
+V(cid:88)
+
+j(cid:48)=1
+T · h + log
+
+V(cid:88)
+
+j(cid:48)=1
+
+= −uj∗ + log
+
+exp(uj(cid:48))
+
+= −v(cid:48)
+
+wO
+
+exp(v(cid:48)
+
+wj
+
+T · h)
+
+which is the same as (7), the objective of the one-word-context model, except that h is
+diﬀerent, as deﬁned in (18) instead of (1).
+
+Figure 2: Continuous bag-of-word model
+
+6
+
+Input layerHidden layerOutput layerWV×NWV×NWV×NW'N×Vyjhix2kx1kxCkC×V-dimN-dimV-dimThe update equation for the hidden→output weights stay the same as that for the
+
+one-word-context model (11). We copy it here:
+(old) − η · ej · h
+
+(new) = v(cid:48)
+
+v(cid:48)
+
+for j = 1, 2,··· , V.
+
+wj
+
+(22)
+Note that we need to apply this to every element of the hidden→output weight matrix for
+each training instance.
+The update equation for input→hidden weights is similar to (16), except that now we
+
+wj
+
+need to apply the following equation for every word wI,c in the context:
+for c = 1, 2,··· , C.
+
+· η · EHT
+
+v(new)
+wI,c
+
+= v(old)
+wI,c
+
+− 1
+C
+
+(23)
+
+where vwI,c is the input vector of the c-th word in the input context; η is a positive learning
+rate; and EH = ∂E
+is given by (12). The intuitive understanding of this update equation
+∂hi
+is the same as that for (16).
+
+2 Skip-Gram Model
+
+The skip-gram model is introduced in Mikolov et al. (2013a,b). Figure 3 shows the skip-
+gram model. It is the opposite of the CBOW model. The target word is now at the input
+layer, and the context words are on the output layer.
+
+We still use vwI to denote the input vector of the only word on the input layer, and
+thus we have the same deﬁnition of the hidden-layer outputs h as in (1), which means h is
+simply copying (and transposing) a row of the input→hidden weight matrix, W, associated
+with the input word wI . We copy the deﬁnition of h below:
+
+h = WT
+
+(k,·) := vT
+wI
+
+,
+
+(24)
+
+On the output layer, instead of outputing one multinomial distribution, we are output-
+ing C multinomial distributions. Each output is computed using the same hidden→output
+matrix:
+
+p(wc,j = wO,c|wI ) = yc,j =
+
+(25)
+
+(cid:80)V
+
+exp(uc,j)
+j(cid:48)=1 exp(uj(cid:48))
+
+where wc,j is the j-th word on the c-th panel of the output layer; wO,c is the actual c-th
+word in the output context words; wI is the only input word; yc,j is the output of the j-th
+unit on the c-th panel of the output layer; uc,j is the net input of the j-th unit on the c-th
+panel of the output layer. Because the output layer panels share the same weights, thus
+
+uc,j = uj = v(cid:48)
+
+wj
+
+T · h, for c = 1, 2,··· , C
+
+(26)
+
+where v(cid:48)
+taken from a column of the hidden→output weight matrix, W(cid:48).
+
+wj is the output vector of the j-th word in the vocabulary, wj, and also v(cid:48)
+
+wj is
+
+7
+
+Figure 3: The skip-gram model.
+
+The derivation of parameter update equations is not so diﬀerent from the one-word-
+
+context model. The loss function is changed to
+
+E = − log p(wO,1, wO,2,··· , wO,C|wI )
+
+C(cid:89)
+
+(cid:80)V
+c + C · log
+uj∗
+
+c=1
+
+= − log
+
+= − C(cid:88)
+
+c=1
+
+exp(uc,j∗
+c )
+j(cid:48)=1 exp(uj(cid:48))
+
+V(cid:88)
+
+j(cid:48)=1
+
+exp(uj(cid:48))
+
+(27)
+
+(28)
+
+(29)
+
+where j∗
+
+c is the index of the actual c-th output context word in the vocabulary.
+
+We take the derivative of E with regard to the net input of every unit on every panel
+
+of the output layer, uc,j and obtain
+
+∂E
+∂uc,j
+
+= yc,j − tc,j := ec,j
+
+(30)
+
+which is the prediction error on the unit, the same as in (8). For notation simplicity, we
+deﬁne a V -dimensional vector EI = {EI1,··· , EIV } as the sum of prediction errors over all
+
+8
+
+Input layer Hidden layer Output layer WV×N	  W'N×V	  C×V-dim	  N-dim	  V-dim	  xk	  hi	  W'N×V	  W'N×V	  y2,j	  y1,j	  yC,j	  context words:
+
+C(cid:88)
+
+ec,j
+
+EIj =
+
+(31)
+
+Next, we take the derivative of E with regard to the hidden→output matrix W(cid:48), and
+obtain
+
+c=1
+
+C(cid:88)
+
+c=1
+
+∂E
+∂w(cid:48)
+
+ij
+
+=
+
+∂E
+∂uc,j
+
+· ∂uc,j
+∂w(cid:48)
+
+ij
+
+= EIj · hi
+
+Thus we obtain the update equation for the hidden→output matrix W(cid:48),
+
+w(cid:48)
+
+ij
+
+(new) = w(cid:48)
+
+ij
+
+(old) − η · EIj · hi
+
+or
+
+v(cid:48)
+
+wj
+
+(new) = v(cid:48)
+
+wj
+
+(old) − η · EIj · h
+
+for j = 1, 2,··· , V.
+
+(32)
+
+(33)
+
+(34)
+
+(35)
+
+(36)
+
+The intuitive understanding of this update equation is the same as that for (11), except
+that the prediction error is summed across all context words in the output layer. Note that
+we need to apply this update equation for every element of the hidden→output matrix for
+each training instance.
+The derivation of the update equation for the input→hidden matrix is identical to (12)
+to (16), except taking into account that the prediction error ej is replaced with EIj. We
+directly give the update equation:
+
+v(new)
+
+wI
+
+= v(old)
+
+wI
+
+− η · EHT
+
+where EH is an N -dim vector, each component of which is deﬁned as
+
+V(cid:88)
+
+EHi =
+
+EIj · w(cid:48)
+ij.
+
+The intuitive understanding of (35) is the same as that for (16).
+
+j=1
+
+3 Optimizing Computational Eﬃciency
+
+So far the models we have discussed (“bigram” model, CBOW and skip-gram) are both in
+their original forms, without any eﬃciency optimization tricks being applied.
+For all these models, there exist two vector representations for each word in the vo-
+cabulary: the input vector vw, and the output vector v(cid:48)
+w. Learning the input vectors is
+cheap; but learning the output vectors is very expensive. From the update equations (22)
+and (33), we can ﬁnd that, in order to update v(cid:48)
+w, for each training instance, we have to
+iterate through every word wj in the vocabulary, compute their net input uj, probability
+
+9
+
+prediction yj (or yc,j for skip-gram), their prediction error ej (or EIj for skip-gram), and
+ﬁnally use their prediction error to update their output vector v(cid:48)
+j.
+
+Doing such computations for all words for every training instance is very expensive,
+making it impractical to scale up to large vocabularies or large training corpora. To solve
+this problem, an intuition is to limit the number of output vectors that must be updated per
+training instance. One elegant approach to achieving this is hierarchical softmax; another
+approach is through sampling, which will be discussed in the next section.
+
+Both tricks optimize only the computation of the updates for output vectors. In our
+, the
+∂h , the weighted sum of predictions
+
+derivations, we care about three values: (1) E, the new objective function; (2) ∂E
+∂v(cid:48)
+new update equation for the output vectors; and (3) ∂E
+errors to be backpropagated for updating input vectors.
+
+w
+
+3.1 Hierarchical Softmax
+
+Hierarchical softmax is an eﬃcient way of computing softmax (Morin and Bengio, 2005;
+Mnih and Hinton, 2009). The model uses a binary tree to represent all words in the
+vocabulary. The V words must be leaf units of the tree. It can be proved that there are
+V − 1 inner units. For each leaf unit, there exists a unique path from the root to the unit;
+and this path is used to estimate the probability of the word represented by the leaf unit.
+See Figure 4 for an example tree.
+
+Figure 4: An example binary tree for the hierarchical softmax model. The white units are
+words in the vocabulary, and the dark units are inner units. An example path from root to
+w2 is highlighted. In the example shown, the length of the path L(w2) = 4. n(w, j) means
+the j-th unit on the path from root to the word w.
+
+In the hierarchical softmax model, there is no output vector representation for words.
+n(w,j). And the probability of
+
+Instead, each of the V − 1 inner units has an output vector v(cid:48)
+a word being the output word is deﬁned as
+
+L(w)−1(cid:89)
+
+j=1
+
+(cid:16)(cid:74)n(w, j + 1) = ch(n(w, j))(cid:75) · v(cid:48)
+
+(cid:17)
+
+p(w = wO) =
+
+σ
+
+T h
+
+n(w,j)
+
+(37)
+
+10
+
+w1w2w3w4wV-1wVn(w2,1)n(w2,2)n(w2,3)where ch(n) is the left child of unit n; v(cid:48)
+n(w,j) is the vector representation (“output vector”)
+of the inner unit n(w, j); h is the output value of the hidden layer (in the skip-gram model
+h = vwI ; and in CBOW, h = 1
+C
+
+(cid:80)C
+c=1 vwc);(cid:74)x(cid:75) is a special function deﬁned as
+(cid:40)
+(cid:74)x(cid:75) =
+
+if x is true;
+otherwise.
+
+1
+−1
+
+(38)
+
+Let us intuitively understand the equation by going through an example. Looking at
+Figure 4, suppose we want to compute the probability that w2 being the output word. We
+deﬁne this probability as the probability of a random walk starting from the root ending
+at the leaf unit in question. At each inner unit (including the root unit), we need to assign
+the probabilities of going left and going right.4 We deﬁne the probability of going left at
+an inner unit n to be
+
+(cid:16)
+
+(cid:17)
+
+p(n, left) = σ
+
+v(cid:48)
+
+n
+
+T · h
+
+which is determined by both the vector representation of the inner unit, and the hidden
+layer’s output value (which is then determined by the vector representation of the input
+word(s)). Apparently the probability of going right at unit n is
+
+p(n, right) = 1 − σ
+
+v(cid:48)
+
+n
+
+T · h
+
+= σ
+
+(cid:16)
+
+(cid:17)
+
+(cid:16)−v(cid:48)
+
+T · h
+
+n
+
+(cid:17)
+
+Following the path from the root to w2 in Figure 4, we can compute the probability of w2
+being the output word as
+
+p(w2 = wO) = p (n(w2, 1), left) · p (n(w2, 2), left) · p (n(w2, 3), right)
+
+= σ
+
+v(cid:48)
+
+T h
+
+n(w2,1)
+
+T h
+
+n(w2,2)
+
+T h
+
+n(w2,3)
+
+(cid:17) · σ
+
+(cid:16)−v(cid:48)
+
+(cid:16)
+
+(cid:17) · σ
+
+v(cid:48)
+
+(cid:17)
+
+(cid:16)
+
+which is exactly what is given by (37). It should not be hard to verify that
+
+V(cid:88)
+
+p(wi = wO) = 1
+
+(39)
+
+(40)
+
+(41)
+
+(42)
+
+(43)
+
+(44)
+
+i=1
+
+making the hierarchical softmax a well deﬁned multinomial distribution among all words.
+Now let us derive the parameter update equation for the vector representations of the
+inner units. For simplicity, we look at the one-word context model ﬁrst. Extending the
+update equations to CBOW and skip-gram models is easy.
+
+For the simplicity of notation, we deﬁne the following shortenizations without intro-
+
+ducing ambiguity:
+
+(cid:74)·(cid:75) :=(cid:74)n(w, j + 1) = ch(n(w, j))(cid:75)
+
+4While an inner unit of a binary tree may not always have both children, a binary Huﬀman tree’s inner
+units always do. Although theoretically one can use many diﬀerent types of trees for hierarchical softmax,
+word2vec uses a binary Huﬀman tree for fast training.
+
+11
+
+For a training instance, the error function is deﬁned as
+
+v(cid:48)
+j := v(cid:48)
+
+nw,j
+
+E = − log p(w = wO|wI ) = −
+
+We take the derivative of E with regard to v(cid:48)
+
+j
+
+j=1
+
+jh, obtaining
+
+L(w)−1(cid:88)
+log σ((cid:74)·(cid:75)v(cid:48)
+(cid:17)(cid:74)·(cid:75)
+((cid:74)·(cid:75) = 1)
+((cid:74)·(cid:75) = −1)
+
+T h) − 1
+
+T h)
+
+(45)
+
+(46)
+
+(47)
+
+(48)
+
+(49)
+
+∂E
+∂v(cid:48)
+jh
+
+=
+
+(cid:16)
+σ((cid:74)·(cid:75)v(cid:48)
+(cid:40)
+
+j
+
+j
+
+=
+
+σ(v(cid:48)
+σ(v(cid:48)
+= σ(v(cid:48)
+
+T h) − 1
+T h)
+T h) − tj
+
+j
+
+Next we take the derivative of E with regard to the vector representation of the inner
+
+where tj = 1 if(cid:74)·(cid:75) = 1 and tj = 0 otherwise.
+
+j
+
+unit n(w, j) and obtain
+
+∂E
+∂v(cid:48)
+
+j
+
+=
+
+∂E
+∂v(cid:48)
+jh
+
+· ∂v(cid:48)
+jh
+∂v(cid:48)
+
+j
+
+=
+
+σ(v(cid:48)
+
+j
+
+T h) − tj
+
+(cid:16)
+(cid:16)
+
+(cid:17) · h
+(cid:17) · h
+
+(50)
+
+(51)
+
+which results in the following update equation:
+(old) − η
+
+(new) = v(cid:48)
+
+v(cid:48)
+
+j
+
+j
+
+σ(v(cid:48)
+
+j
+
+T h) − tj
+
+which should be applied to j = 1, 2,··· , L(w) − 1. We can understand σ(v(cid:48)
+T h) − tj as
+the prediction error for the inner unit n(w, j). The “task” for each inner unit is to predict
+whether it should follow the left child or the right child in the random walk. tj = 1 means
+the ground truth is to follow the left child; tj = 0 means it should follow the right child.
+σ(v(cid:48)
+T h) is the prediction result. For a training instance, if the prediction of the inner unit
+is very close to the ground truth, then its vector representation v(cid:48)
+j will move very little;
+otherwise v(cid:48)
+j will move in an appropriate direction by moving (either closer or farther away5
+from h) so as to reduce the prediction error for this instance. This update equation can
+be used for both CBOW and the skip-gram model. When used for the skip-gram model,
+we need to repeat this update procedure for each of the C words in the output context.
+
+j
+
+j
+
+5Again, the distance measurement is inner product.
+
+12
+
+In order to backpropagate the error to learn input→hidden weights, we take the deriva-
+
+tive of E with regard to the output of the hidden layer and obtain
+
+L(w)−1(cid:88)
+L(w)−1(cid:88)
+
+j=1
+
+∂E
+∂v(cid:48)
+jh
+
+(cid:16)
+
+· ∂v(cid:48)
+
+jh
+∂h
+
+σ(v(cid:48)
+
+j
+
+T h) − tj
+
+∂E
+∂h
+
+=
+
+=
+
+j=1
+
+:= EH
+
+(cid:17) · v(cid:48)
+
+j
+
+(52)
+
+(53)
+
+(54)
+
+which can be directly substituted into (23) to obtain the update equation for the input
+vectors of CBOW. For the skip-gram model, we need to calculate a EH value for each word
+in the skip-gram context, and plug the sum of the EH values into (35) to obtain the update
+equation for the input vector.
+
+From the update equations, we can see that the computational complexity per training
+instance per context word is reduced from O(V ) to O(log(V )), which is a big improvement
+in speed. We still have roughly the same number of parameters (V −1 vectors for inner-units
+compared to originally V output vectors for words).
+
+3.2 Negative Sampling
+
+The idea of negative sampling is more straightforward than hierarchical softmax: in order
+to deal with the diﬃculty of having too many output vectors that need to be updated per
+iteration, we only update a sample of them.
+
+Apparently the output word (i.e., the ground truth, or positive sample) should be kept
+in our sample and gets updated, and we need to sample a few words as negative samples
+(hence “negative sampling”). A probabilistic distribution is needed for the sampling pro-
+cess, and it can be arbitrarily chosen. We call this distribution the noise distribution, and
+denote it as Pn(w). One can determine a good distribution empirically.6
+
+In word2vec, instead of using a form of negative sampling that produces a well-deﬁned
+posterior multinomial distribution, the authors argue that the following simpliﬁed training
+objective is capable of producing high-quality word embeddings:7
+
+E = − log σ(v(cid:48)
+
+wO
+
+log σ(−v(cid:48)
+
+wj
+
+T h)
+
+(55)
+
+where wO is the output word (i.e., the positive sample), and v(cid:48)
+the output value of the hidden layer: h = 1
+C
+
+is its output vector; h is
+c=1 vwc in the CBOW model and h = vwI
+
+wO
+
+6As described in (Mikolov et al., 2013b), word2vec uses a unigram distribution raised to the 3
+
+4 th power
+
+for the best quality of results.
+
+7Goldberg and Levy (2014) provide a theoretical analysis on the reason of using this objective function.
+
+13
+
+T h) − (cid:88)
+(cid:80)C
+
+wj∈Wneg
+
+in the skip-gram model; Wneg = {wj|j = 1,··· , K} is the set of words that are sampled
+based on Pn(w), i.e., negative samples.
+
+To obtain the update equations of the word vectors under negative sampling, we ﬁrst
+
+take the derivative of E with regard to the net input of the output unit wj:
+
+(cid:40)
+
+∂E
+
+∂v(cid:48)
+wj
+
+T h
+
+=
+
+σ(v(cid:48)
+σ(v(cid:48)
+= σ(v(cid:48)
+
+wj
+
+wj
+
+T h) − 1
+T h)
+T h) − tj
+
+wj
+
+if wj = wO
+if wj ∈ Wneg
+
+(56)
+
+(57)
+
+(cid:16)
+
+(cid:16)
+
+(cid:17)
+
+(cid:17)
+
+where tj is the “label” of word wj. t = 1 when wj is a positive sample; t = 0 otherwise.
+Next we take the derivative of E with regard to the output vector of the word wj,
+
+∂E
+∂v(cid:48)
+wj
+
+=
+
+∂E
+
+∂v(cid:48)
+wj
+
+T h
+
+T h
+
+· ∂v(cid:48)
+wj
+∂v(cid:48)
+wj
+
+=
+
+σ(v(cid:48)
+
+wj
+
+T h) − tj
+
+h
+
+(58)
+
+which results in the following update equation for its output vector:
+
+v(cid:48)
+
+(new) = v(cid:48)
+
+(old) − η
+
+σ(v(cid:48)
+
+T h) − tj
+
+(59)
+which only needs to be applied to wj ∈ {wO}∪Wneg instead of every word in the vocabulary.
+This shows why we may save a signiﬁcant amount of computational eﬀort per iteration.
+
+wj
+
+wj
+
+wj
+
+h
+
+The intuitive understanding of the above update equation should be the same as that
+of (11). This equation can be used for both CBOW and the skip-gram model. For the
+skip-gram model, we apply this equation for one context word at a time.
+
+To backpropagate the error to the hidden layer and thus update the input vectors
+of words, we need to take the derivative of E with regard to the hidden layer’s output,
+obtaining
+
+∂E
+∂h
+
+=
+
+=
+
+(cid:88)
+(cid:88)
+
+wj∈{wO}∪Wneg
+
+wj∈{wO}∪Wneg
+
+T h
+
+∂E
+
+(cid:16)
+
+∂v(cid:48)
+wj
+σ(v(cid:48)
+
+· ∂v(cid:48)
+
+wj
+T h
+∂h
+T h) − tj
+
+wj
+
+(cid:17)
+
+v(cid:48)
+wj := EH
+
+(60)
+
+(61)
+
+By plugging EH into (23) we obtain the update equation for the input vectors of the
+CBOW model. For the skip-gram model, we need to calculate a EH value for each word in
+the skip-gram context, and plug the sum of the EH values into (35) to obtain the update
+equation for the input vector.
+
+14
+
+Acknowledgement
+
+The author would like to thank Eytan Adar, Qiaozhu Mei, Jian Tang, Dragomir Radev,
+Daniel Pressel, Thomas Dean, Sudeep Gandhe, Peter Lau, Luheng He, Tomas Mikolov,
+Hao Jiang, and Oded Shmueli for discussions on the topic and/or improving the writing of
+the note.
+
+References
+
+Goldberg, Y. and Levy, O. (2014). word2vec explained: deriving mikolov et al.’s negative-
+
+sampling word-embedding method. arXiv:1402.3722 [cs, stat]. arXiv: 1402.3722.
+
+Mikolov, T., Chen, K., Corrado, G., and Dean, J. (2013a). Eﬃcient estimation of word
+
+representations in vector space. arXiv preprint arXiv:1301.3781.
+
+Mikolov, T., Sutskever, I., Chen, K., Corrado, G. S., and Dean, J. (2013b). Distributed
+representations of words and phrases and their compositionality. In Advances in Neural
+Information Processing Systems, pages 3111–3119.
+
+Mnih, A. and Hinton, G. E. (2009). A scalable hierarchical distributed language model.
+In Koller, D., Schuurmans, D., Bengio, Y., and Bottou, L., editors, Advances in Neural
+Information Processing Systems 21, pages 1081–1088. Curran Associates, Inc.
+
+Morin, F. and Bengio, Y. (2005). Hierarchical probabilistic neural network language model.
+
+In AISTATS, volume 5, pages 246–252. Citeseer.
+
+15
+
+A Back Propagation Basics
+
+A.1 Learning Algorithms for a Single Unit
+Figure 5 shows an artiﬁcial neuron (unit). {x1,··· , xK} are input values; {w1,··· , wK} are
+weights; y is a scalar output; and f is the link function (also called activation/decision/transfer
+function).
+
+Figure 5: An artiﬁcial neuron
+
+The unit works in the following way:
+
+y = f (u),
+
+(62)
+
+where u is a scalar number, which is the net input (or “new input”) of the neuron. u is
+deﬁned as
+
+K(cid:88)
+
+u =
+
+wixi.
+
+(63)
+
+(64)
+
+Using vector notation, we can write
+
+i=0
+
+u = wT x
+
+Note that here we ignore the bias term in u. To include a bias term, one can simply
+
+add an input dimension (e.g., x0) that is constant 1.
+
+Apparently, diﬀerent link functions result in distinct behaviors of the neuron. We
+
+discuss two example choices of link functions here.
+
+The ﬁrst example choice of f (u) is the unit step function (aka Heaviside step
+
+function):
+
+f (u) =
+
+(cid:40)
+
+1
+0
+
+if u > 0
+otherwise
+
+(65)
+
+A neuron with this link function is called a perceptron. The learning algorithm for a
+
+perceptron is the perceptron algorithm. Its update equation is deﬁned as:
+
+w(new) = w(old) − η · (y − t) · x
+
+(66)
+
+16
+
+x1x2x3xKfyw1w2w3wKwhere t is the label (gold standard) and η is the learning rate (η > 0). Note that a
+perceptron is a linear classiﬁer, which means its description capacity can be very limited.
+If we want to ﬁt more complex functions, we need to use a non-linear model.
+
+The second example choice of f (u) is the logistic function (a most common kind of
+
+sigmoid function), deﬁned as
+
+σ(u) =
+
+1
+
+1 + e−u
+
+(67)
+
+The logistic function has two primary good properties: (1) the output y is always between
+0 and 1, and (2) unlike a unit step function, σ(u) is smooth and diﬀerentiable, making the
+derivation of update equation very easy.
+
+Note that σ(u) also has the following two properties that can be very convenient and
+
+will be used in our subsequent derivations:
+
+σ(−u) = 1 − σ(u)
+
+dσ(u)
+
+du
+
+= σ(u)σ(−u)
+
+(68)
+
+(69)
+
+We use stochastic gradient descent as the learning algorithm of this model. In order to
+derive the update equation, we need to deﬁne the error function, i.e., the training objective.
+The following objective function seems to be convenient:
+
+E =
+
+(t − y)2
+
+1
+2
+
+We take the derivative of E with regard to wi,
+
+∂E
+∂wi
+
+· ∂y
+∂u
+
+· ∂u
+∂wi
+
+∂E
+∂y
+
+=
+= (y − t) · y(1 − y) · xi
+
+(70)
+
+(71)
+
+(72)
+
+∂u = y(1 − y) because y = f (u) = σ(u), and (68) and (69). Once we have the
+
+where ∂y
+derivative, we can apply stochastic gradient descent:
+
+w(new) = w(old) − η · (y − t) · y(1 − y) · x.
+
+(73)
+
+A.2 Back-propagation with Multi-Layer Network
+Figure 6 shows a multi-layer neural network with an input layer {xk} = {x1,··· , xK}, a
+hidden layer {hi} = {h1,··· , hN}, and an output layer {yj} = {y1,··· , yM}. For clarity
+we use k, i, j as the subscript for input, hidden, and output layer units respectively. We use
+ui and u(cid:48)
+j to denote the net input of hidden layer units and output layer units respectively.
+We want to derive the update equation for learning the weights wki between the input
+and hidden layers, and w(cid:48)
+ij between the hidden and output layers. We assume that all the
+
+17
+
+hi = σ(ui) = σ
+
+wkixk
+
+.
+
+yj = σ(u(cid:48)
+
+j) = σ
+
+w(cid:48)
+ijhi
+
+.
+
+(cid:33)
+
+(cid:33)
+
+(cid:32) K(cid:88)
+(cid:32) N(cid:88)
+
+k=1
+
+i=1
+
+M(cid:88)
+
+j=1
+
+(74)
+
+(75)
+
+(76)
+
+Figure 6: A multi-layer neural network with one hidden layer
+
+computation units (i.e., units in the hidden layer and the output layer) use the logistic
+function σ(u) as the link function. Therefore, for a unit hi in the hidden layer, its output
+is deﬁned as
+
+Similarly, for a unit yj in the output layer, its output is deﬁned as
+
+We use the squared sum error function given by
+
+E(x, t, W, W(cid:48)) =
+
+1
+2
+
+(yj − tj)2,
+
+where W = {wki}, a K × N weight matrix (input-hidden), and W(cid:48) = {w(cid:48)
+ij}, a N × M
+weight matrix (hidden-output). t = {t1,··· , tM}, a M -dimension vector, which is the
+gold-standard labels of output.
+
+To obtain the update equations for wki and w(cid:48)
+
+ij, we simply need to take the derivative
+of the error function E with regard to the weights respectively. To make the derivation
+straightforward, we do start computing the derivative for the right-most layer (i.e., the
+output layer), and then move left. For each layer, we split the computation into three
+steps, computing the derivative of the error with regard to the output, net input, and
+weight respectively. This process is shown below.
+
+18
+
+y1y2y3yMh1h2hNx1x2x3xKInput layerHidden layerOutput layer{wki}{w'ij}We start with the output layer. The ﬁrst step is to compute the derivative of the error
+
+w.r.t. the output:
+
+= yj − tj.
+
+∂E
+∂yj
+
+(77)
+
+The second step is to compute the derivative of the error with regard to the net input of
+the output layer. Note that when taking derivatives with regard to something, we need to
+keep everything else ﬁxed. Also note that this value is very important because it will be
+reused multiple times in subsequent computations. We denote it as EI(cid:48)
+
+j for simplicity.
+
+∂E
+∂u(cid:48)
+
+j
+
+=
+
+∂E
+∂yj
+
+· ∂yj
+∂u(cid:48)
+
+j
+
+= (yj − tj) · yj(1 − yj) := EI(cid:48)
+
+j
+
+(78)
+
+The third step is to compute the derivative of the error with regard to the weight between
+the hidden layer and the output layer.
+
+∂E
+∂w(cid:48)
+
+ij
+
+=
+
+∂E
+∂u(cid:48)
+
+j
+
+· ∂u(cid:48)
+∂w(cid:48)
+
+j
+
+ij
+
+= EI(cid:48)
+
+j · hi
+
+(79)
+
+So far, we have obtained the update equation for weights between the hidden layer and the
+output layer.
+
+w(cid:48)
+
+ij
+
+(new) = w(cid:48)
+= w(cid:48)
+
+ij
+
+ij
+
+(old) − η · ∂E
+∂w(cid:48)
+j · hi.
+(old) − η · EI(cid:48)
+
+ij
+
+(80)
+
+(81)
+
+where η > 0 is the learning rate.
+
+We can repeat the same three steps to obtain the update equation for weights of the
+
+previous layer, which is essentially the idea of back propagation.
+
+We repeat the ﬁrst step and compute the derivative of the error with regard to the
+output of the hidden layer. Note that the output of the hidden layer is related to all units
+in the output layer.
+
+M(cid:88)
+
+j=1
+
+∂E
+∂hi
+
+=
+
+∂u(cid:48)
+j
+∂hi
+
+∂E
+∂u(cid:48)
+
+j
+
+=
+
+M(cid:88)
+
+j=1
+
+EI(cid:48)
+
+j · w(cid:48)
+ij.
+
+(82)
+
+Then we repeat the second step above to compute the derivative of the error with regard
+to the net input of the hidden layer. This value is again very important, and we denote it
+as EIi.
+
+∂E
+∂ui
+
+=
+
+∂E
+∂hi
+
+· ∂hi
+∂ui
+
+=
+
+EI(cid:48)
+
+j · w(cid:48)
+
+ij · hi(1 − hi) := EIi
+
+(83)
+
+M(cid:88)
+
+j=1
+
+Next we repeat the third step above to compute the derivative of the error with regard to
+the weights between the input layer and the hidden layer.
+= EIi · xk,
+
+(84)
+
+=
+
+∂E
+∂wki
+
+∂E
+∂ui
+
+· ∂ui
+∂wki
+
+19
+
+Finally, we can obtain the update equation for weights between the input layer and the
+hidden layer.
+
+wki
+
+(new) = wki
+
+(old) − η · EIi · xk.
+
+(85)
+
+From the above example, we can see that the intermediate results (EI(cid:48)
+
+j) when computing
+the derivatives for one layer can be reused for the previous layer. Imagine there were another
+layer prior to the input layer, then EIi can also be reused to continue computing the chain
+of derivatives eﬃciently. Compare Equations (78) and (83), we may ﬁnd that in (83), the
+ij is just like the “error” of the hidden layer unit hi. We may interpret
+this term as the error “back-propagated” from the next layer, and this propagation may
+go back further if the network has more hidden layers.
+
+factor(cid:80)M
+
+j=1 EI(cid:48)
+
+jw(cid:48)
+
+B wevi: Word Embedding Visual Inspector
+
+An interactive visual interface, wevi (word embedding visual inspector), is available online
+to demonstrate the working mechanism of the models described in this paper. See Figure 7
+for a screenshot of wevi.
+
+The demo allows the user to visually examine the movement of input vectors and output
+vectors as each training instance is consumed. The training process can be also run in batch
+mode (e.g., consuming 500 training instances in a row), which can reveal the emergence of
+patterns in the weight matrices and the corresponding word vectors. Principal component
+analysis (PCA) is employed to visualize the “high”-dimensional vectors in a 2D scatter
+plot. The demo supports both CBOW and skip-gram models.
+
+After training the model, the user can manually activate one or multiple input-layer
+units, and inspect which hidden-layer units and output-layer units become active. The
+user can also customize training data, hidden layer size, and learning rate. Several preset
+training datasets are provided, which can generate diﬀerent results that seem interesting,
+such as using a toy vocabulary to reproduce the famous word analogy: king - queen = man
+- woman.
+
+It is hoped that by interacting with this demo one can quickly gain insights of the
+working mechanism of the model. The system is available at http://bit.ly/wevi-online.
+The source code is available at http://github.com/ronxin/wevi.
+
+20
+
+Figure 7: wevi screenshot (http://bit.ly/wevi-online)
+
+21
+
+
