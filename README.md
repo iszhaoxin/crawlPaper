@@ -1,28 +1,6 @@
-### ABOUT CRAWLPAPER
+## ABOUT CRAWLPAPER
 
-#### 1. 软件功能
-
-- **输入**
-  - 用户需要提供一些论文的准确的名称
-  - 提供向后引用以及向前引用的论文层数
-  - (可选功能) 选择是否根据论文标题相似度, 对要爬取的论文进行筛选. 并提供筛选比例或者筛选个数
-  - (可选功能) 选择是否存入数据库中, 是的话需提供数据库帐号和密码.
-- **输出**
-  - 构建一个论文的信息文件夹,包括:
-    - 该论文的相关信息到文件 - paperMes.txt
-    - 该论文的pdf
-    - 规范化后的文本数据 - \<papername\>.txt
-      - 按照章节进行分割, 并赋予固定的格式, 便于之后的输出.
-      - 除去非文本数据被文本化后带来的乱码以及杂乱文本(例如图像或者图表等等.)
-      - (高阶:) 抽出该数据的文本关键词, 进行语义段落分割, 包括model, method, question, conclusion等等几个部分, 对每个部分计算段落语义向量.
-  - 构建论文的引用关系
-    - 用复杂网络构建出这个网络
-    - 网路的节点包括论文的所有信息.(可选, 抽出关键词)
-    - 对网络进行分析, 得出一些基于复杂网络的性质.
-
-
-
-#### 2. 软件架构
-
-
-
+#### 1. Introduction
+A program try to crawl academic paper message on google scholar but unable to contend with google's anti crawling techniques.
+Next work : 
+  Set dynamic IP
